@@ -8,7 +8,7 @@ sales_months = 6            # how recent a house sale counts as a "new owner"
 revisit_cooldown_days = 21  # hide streets/businesses visited within this window
 top_streets = 40
 top_businesses = 40
-nearby_metres = 500         # "within a 5-minute walk"
+nearby_metres = 400         # "within a 5-minute walk" (~80m per minute)
 user_agent = "essex-lead-finder/0.1 (personal sales research tool)"
 
 # Towns are the search centres. The police API returns crimes within ~1 mile

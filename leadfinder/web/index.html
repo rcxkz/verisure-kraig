@@ -13,9 +13,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--ink:#16181d;--muted:#626973;--line:#e2e5e9;--accent:#c8102e;--accent-ink:#fff;--chip:#eef0f3;
-  --ok:#1f7a4d;--warn:#a15c00;--nav:#ffffffee;--shadow:0 1px 2px #0000000d}
+  --ok:#1f7a4d;--bad:#c62828;--warn:#a15c00;--nav:#ffffffee;--shadow:0 1px 2px #0000000d}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101215;--card:#1a1d22;--ink:#eceef1;--muted:#9aa1ab;--line:#2a2f36;
-  --accent:#ff4d5e;--accent-ink:#16181d;--chip:#242930;--ok:#4cc38a;--warn:#f0a24a;--nav:#1a1d22ee;--shadow:none}}
+  --accent:#ff4d5e;--accent-ink:#16181d;--chip:#242930;--ok:#4cc38a;--bad:#ff6b6b;--warn:#f0a24a;--nav:#1a1d22ee;--shadow:none}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -31,6 +31,8 @@ main{padding:8px 16px calc(84px + env(safe-area-inset-bottom));max-width:720px;m
 .view{display:none}.view.on{display:block}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;box-shadow:var(--shadow)}
 .card.done{opacity:.55}
+.card.tap{cursor:pointer}
+.card.tap:active{background:var(--chip)}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .t{font-weight:650;font-size:16px}
 .score{font-weight:750;color:var(--accent);font-variant-numeric:tabular-nums}
@@ -46,9 +48,12 @@ ul.pts{margin:8px 0 0;padding-left:18px}ul.pts li{margin:3px 0}
 .badge.new{background:var(--accent);color:var(--accent-ink)}
 .empty{text-align:center;color:var(--muted);padding:40px 10px}
 .more{display:block;width:100%;margin:12px 0;justify-content:center}
-#map{height:calc(100dvh - 190px - env(safe-area-inset-bottom));border-radius:12px;border:1px solid var(--line);margin-top:10px}
+#map{height:calc(100dvh - 215px - env(safe-area-inset-bottom));border-radius:12px;border:1px solid var(--line);margin-top:10px}
 .leaflet-popup-content{font:13.5px/1.4 system-ui,sans-serif}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stats.four{grid-template-columns:repeat(4,1fr)}.stats.four .stat b{font-size:20px}
+.seg.period{display:flex;margin-top:10px}.seg.period button{flex:1}
+table.bd{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}table.bd th{font-size:12px;color:var(--muted);font-weight:500;text-align:right;padding:4px}table.bd td{padding:6px 4px;border-top:1px solid var(--line);text-align:right}table.bd td:first-child,table.bd th:first-child{text-align:left}table.bd tr.cur td{font-weight:700}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
 .stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
 .stat span{font-size:12px;color:var(--muted)}
@@ -61,11 +66,39 @@ nav button.on{color:var(--accent);font-weight:600}
 .sheet{position:fixed;inset:0;z-index:50;background:#0007;display:none;align-items:flex-end}
 .sheet.on{display:flex}
 .sheet .panel{background:var(--card);width:100%;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
-.sheet textarea{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:80px;margin:8px 0}
+#fbText,.sheet textarea{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:80px;margin:8px 0}
 .sheet input{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13.5px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 .rules{font-size:13px;color:var(--muted)}
+.summary{margin-top:8px;font-size:13px;color:var(--muted)}.summary b{color:var(--ink)}
+.screen{position:fixed;inset:0;z-index:40;background:var(--bg);display:none;flex-direction:column;overflow-y:auto}
+.screen.on{display:flex}
+.ss-head{position:sticky;top:0;background:var(--bg);display:flex;gap:10px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line);z-index:2}
+.ss-body{padding:8px 16px calc(24px + env(safe-area-inset-bottom));max-width:720px;width:100%;margin:0 auto}
+.ss-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0 6px;flex-wrap:wrap}
+.ss-tools input{width:64px;font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{font:inherit;font-size:13.5px;border:0;background:none;color:var(--ink);padding:8px 14px;cursor:pointer;min-height:38px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg.choices{display:flex;margin:10px 0 0}.seg.choices button{flex:1;padding:10px 6px}
+.legend{margin:2px 0 4px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%}.dot.g{background:var(--ok)}.dot.r{background:var(--bad)}.dot.o{background:var(--muted)}
+.doors{padding:4px 10px}
+.door{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.door:last-child{border-bottom:0}
+.door .num{font:inherit;font-weight:700;font-size:17px;min-width:64px;text-align:left;background:none;border:0;color:var(--ink);padding:6px 2px;cursor:pointer}
+.door .what{flex:1;min-width:0;font-size:12.5px;color:var(--muted);line-height:1.3}
+.door .what b{color:var(--ink);font-weight:600}
+.tick{width:46px;height:46px;border-radius:10px;border:2px solid var(--line);background:var(--card);font-size:20px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+.tick.g{color:var(--ok)}.tick.r{color:var(--bad)}.tick.o{font-size:12px;font-weight:600}
+.tick.g.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.tick.r.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.tick.o.on{background:var(--muted);border-color:var(--muted);color:var(--bg)}
+.newowner{display:inline-block;font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--chip);color:var(--accent);font-weight:600}
+.o-not_home{color:var(--muted)}.o-callback{color:var(--warn)}.o-appointment,.o-sold{color:var(--ok)}.o-no_cold_callers,.o-not_interested{color:var(--muted)}
+details.tp summary{font-size:13px;color:var(--muted);cursor:pointer;margin-top:6px}
 </style>
 </head>
 <body>
@@ -80,7 +113,7 @@ nav button.on{color:var(--accent);font-weight:600}
 
 <main>
   <section class="view on" id="v-streets"></section>
-  <section class="view" id="v-map"><div id="map"></div></section>
+  <section class="view" id="v-map"><div class="legend meta" style="margin-top:8px"><span class="dot" style="background:#8b2fc9"></span> burglaries <span class="dot" style="background:var(--accent)"></span> streets to knock <span class="dot" style="background:#2563eb"></span> new businesses</div><div id="map"></div></section>
   <section class="view" id="v-shops"></section>
   <section class="view" id="v-news"></section>
   <section class="view" id="v-log"></section>
@@ -94,9 +127,31 @@ nav button.on{color:var(--accent);font-weight:600}
   <button data-v="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4h6v3H9zM6 6h12v15H6zM9 12l2 2 4-4"/></svg><span>Log <span class="count" id="cbCount" hidden></span></span></button>
 </nav>
 
+<div class="screen" id="ss">
+  <div class="ss-head">
+    <button class="btn" id="ssBack" aria-label="Back">‹ Back</button>
+    <div style="min-width:0;flex:1"><div class="t" id="ssTitle"></div><div class="meta" id="ssMeta"></div></div>
+    <a class="btn" id="ssGo" target="_blank" rel="noopener">Go</a>
+  </div>
+  <div class="ss-body">
+    <div id="ssHints"></div>
+    <div class="ss-tools">
+      <div class="seg" id="parity">
+        <button data-par="odd">Odd</button><button data-par="even">Even</button><button data-par="all">All</button>
+      </div>
+      <label class="meta">Doors 1 to <input id="maxDoor" type="number" inputmode="numeric" min="1" max="999"></label>
+    </div>
+    <div class="legend meta"><span class="dot g"></span> interested <span class="dot r"></span> no <span class="dot o"></span> out — tap a number for more options</div>
+    <div class="card doors" id="ssDoors"></div>
+    <button class="btn more" id="ssAdd">+ Add a flat or other door (e.g. 79A, Flat 3)</button>
+    <button class="btn primary more" id="ssFinish">Finish street</button>
+  </div>
+</div>
+
 <div class="sheet" id="sheet"><div class="panel">
   <div class="t" id="sheetTitle"></div>
   <div class="meta" id="sheetSub"></div>
+  <div class="seg choices" id="sheetChoices"></div>
   <textarea id="sheetNote" placeholder="Note (name, best time, what they said…)"></textarea>
   <div id="sheetWhen" class="meta">Call back on <input type="date" id="sheetDate"></div>
   <div class="acts"><button class="btn primary" id="sheetSave">Save</button><button class="btn" id="sheetCancel">Cancel</button></div>
@@ -109,7 +164,13 @@ const COOLDOWN_DAYS = 21;
 const OUTCOMES = [
   ["not_home", "Not home", ""], ["not_interested", "No", ""], ["callback", "Callback", "warn"],
   ["appointment", "Appt", "good"], ["sold", "Sold ✓", "good"], ["do_not_return", "Don't return", ""]];
-const LABEL = Object.fromEntries(OUTCOMES.map(o => [o[0], o[1]]));
+// Outcomes for a single front door
+const DOOR_OUTCOMES = [
+  ["not_home", "Not home", ""], ["not_interested", "Not interested", ""], ["callback", "Callback", "warn"],
+  ["appointment", "Appointment", "good"], ["sold", "Sold ✓", "good"], ["no_cold_callers", "No cold callers sign", ""]];
+const LABEL = Object.fromEntries([...OUTCOMES, ...DOOR_OUTCOMES].map(o => [o[0], o[1]]));
+Object.assign(LABEL, {worked: "Street done", skipped: "Skipped", do_not_return: "Don't return", installed: "Installed"});
+const GREEN = ["callback", "appointment", "sold", "installed"], RED = ["not_interested", "no_cold_callers", "do_not_return"];
 const PAGE = 40;
 
 const store = {
@@ -135,7 +196,7 @@ function lastVisit(key) {
 function isDone(key) {
   const v = lastVisit(key);
   if (!v) return false;
-  if (v.outcome === "sold" || v.outcome === "do_not_return") return true;
+  if (["sold", "installed", "do_not_return"].includes(v.outcome)) return true;
   if (v.outcome === "callback" && v.due) return true; // lives in the Log tab until due
   return daysAgo(v.ts) < COOLDOWN_DAYS;
 }
@@ -144,26 +205,152 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 function logVisit(item, outcome, note = "", due = "") {
   visits.push({kind: item.kind, key: item.key, label: item.label, lat: item.lat, lng: item.lng,
-               outcome, note, due, ts: new Date().toISOString()});
+               street: item.street || "", door: item.door || "", outcome, note, due, ts: new Date().toISOString()});
   store.set("visits", visits);
   toast(`${LABEL[outcome]} — ${item.label}`);
+  renderStreetScreen();
   renderAll();
 }
+
+// ---- Streets: door-by-door ----
+function doorsOn(streetKey) {
+  const latest = new Map(), history = new Map();
+  visits.forEach(v => {
+    if (v.kind !== "door" || v.street !== streetKey) return;
+    latest.set(v.door, v);
+    history.set(v.door, (history.get(v.door) || 0) + 1);
+  });
+  return {latest, history};
+}
+function streetSummary(streetKey) {
+  const {latest} = doorsOn(streetKey);
+  const vs = [...latest.values()];
+  const s = lastVisit(streetKey);
+  return {
+    doors: vs.length,
+    appts: vs.filter(v => v.outcome === "appointment").length,
+    sold: vs.filter(v => v.outcome === "sold" || v.outcome === "installed").length,
+    callbacks: vs.filter(v => v.outcome === "callback").length,
+    notHome: vs.filter(v => v.outcome === "not_home").length,
+    last: vs.reduce((a, v) => (!a || v.ts > a ? v.ts : a), s?.ts || ""),
+    status: s && (s.outcome === "worked" || s.outcome === "skipped") && daysAgo(s.ts) < COOLDOWN_DAYS ? s : null,
+  };
+}
+function streetDone(key) { return !!streetSummary(key).status; }
+
+const doorNum = d => { const m = String(d).match(/\d+/); return m ? +m[0] : Infinity; };
+const sortDoors = (a, b) => doorNum(a) - doorNum(b) || String(a).localeCompare(String(b));
+let ssItem = null;
+const streetPrefs = k => store.get("st:" + k, {});
+const saveStreetPrefs = (k, v) => store.set("st:" + k, {...streetPrefs(k), ...v});
+
+function openStreet(item) {
+  ssItem = item;
+  $("#ssTitle").textContent = item.raw.street;
+  $("#ssGo").href = `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${item.lat},${item.lng}`;
+  $("#ss").classList.add("on");
+  $("#ss").scrollTop = 0;
+  renderStreetScreen();
+}
+function closeStreet() { $("#ss").classList.remove("on"); ssItem = null; renderAll(); }
+
+function streetDoorList(item, latest) {
+  const s = item.raw, pref = streetPrefs(item.key);
+  const known = [...(s.sale_doors || []), ...latest.keys(), ...(pref.extra || [])];
+  const maxKnown = Math.max(0, ...known.map(doorNum).filter(Number.isFinite));
+  const max = pref.max || Math.max(30, Math.ceil(maxKnown / 2) * 2);
+  const par = pref.par || store.get("parity", "all");
+  const set = new Set();
+  for (let n = 1; n <= max; n++) set.add(String(n));
+  known.forEach(d => set.add(String(d)));
+  const ok = d => { const n = doorNum(d); return par === "all" || !Number.isFinite(n) || (par === "odd" ? n % 2 === 1 : n % 2 === 0); };
+  return {doors: [...set].filter(ok).sort(sortDoors), max, par};
+}
+
+function renderStreetScreen() {
+  if (!ssItem) return;
+  const s = ssItem.raw, {latest, history} = doorsOn(ssItem.key);
+  const sum = streetSummary(ssItem.key);
+  const {doors, max, par} = streetDoorList(ssItem, latest);
+  $("#ssMeta").textContent = `${s.town} · ${sum.doors} door${sum.doors === 1 ? "" : "s"} logged`
+    + (sum.appts ? ` · ${sum.appts} appt` : "") + (sum.sold ? ` · ${sum.sold} sold` : "");
+  $("#ssHints").innerHTML = `<details class="tp"><summary>Talking points</summary><ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul></details>`;
+  document.querySelectorAll("#parity button").forEach(b => b.classList.toggle("on", b.dataset.par === par));
+  $("#maxDoor").value = max;
+  const owners = new Set(s.sale_doors || []);
+  $("#ssDoors").innerHTML = doors.map(d => {
+    const v = latest.get(d), o = v?.outcome;
+    const g = GREEN.includes(o), r = RED.includes(o), out = o === "not_home";
+    const status = v ? `<b class="o-${o}">${LABEL[o] || o}</b> · ${ago(v.ts)}${history.get(d) > 1 ? ` · ${history.get(d)}×` : ""}${v.note ? `<br>${esc(v.note)}` : ""}${v.due && o === "callback" ? `<br>Call back ${esc(v.due)}` : ""}`
+                     : (owners.has(d) ? `<span class="newowner">NEW OWNER</span>` : "");
+    return `<div class="door"><button class="num" data-more-door="${esc(d)}">${esc(d)}</button>
+      <div class="what">${status}</div>
+      <button class="tick o ${out ? "on" : ""}" data-tick="out" data-d="${esc(d)}" aria-label="Not home ${esc(d)}">Out</button>
+      <button class="tick r ${r ? "on" : ""}" data-tick="no" data-d="${esc(d)}" aria-label="Not interested ${esc(d)}">✗</button>
+      <button class="tick g ${g ? "on" : ""}" data-tick="yes" data-d="${esc(d)}" aria-label="Interested ${esc(d)}">✓</button></div>`;
+  }).join("");
+  $("#ssFinish").textContent = sum.status ? "Street finished ✓ (tap to reopen)" : "Finish street";
+}
+
+function doorItem(door) {
+  const s = ssItem;
+  return {kind: "door", key: `${s.key}#${door}`, street: s.key, door, label: `${door} ${s.raw.street}, ${s.raw.town}`,
+          sub: s.raw.street, lat: s.lat, lng: s.lng};
+}
+
+// Tick behaviour: tap = set, tap the lit one again = clear today's tick
+function tick(door, kind) {
+  const item = doorItem(door), v = lastVisit(item.key), o = v?.outcome;
+  const lit = (kind === "out" && o === "not_home") || (kind === "no" && RED.includes(o)) || (kind === "yes" && GREEN.includes(o));
+  if (lit && v && daysAgo(v.ts) === 0 && !(kind === "yes" && o === "installed")) { undo(item.key); return; }
+  if (kind === "out") logVisit(item, "not_home");
+  else if (kind === "no") logVisit(item, "not_interested");
+  else openSheet(item, o && GREEN.includes(o) && o !== "installed" ? o : "callback", ["callback", "appointment", "sold"]);
+}
+
+$("#ssBack").onclick = closeStreet;
+$("#parity").onclick = e => { const b = e.target.closest("[data-par]"); if (!b) return;
+  store.set("parity", b.dataset.par); saveStreetPrefs(ssItem.key, {par: b.dataset.par}); renderStreetScreen(); };
+$("#maxDoor").onchange = e => { const n = Math.max(1, Math.min(999, +e.target.value || 30)); saveStreetPrefs(ssItem.key, {max: n}); renderStreetScreen(); };
+$("#ssAdd").onclick = () => {
+  const d = (prompt("Door to add (e.g. 79A, Flat 3, The Willows):") || "").trim();
+  if (!d) return;
+  const pref = streetPrefs(ssItem.key);
+  saveStreetPrefs(ssItem.key, {extra: [...new Set([...(pref.extra || []), d])]});
+  renderStreetScreen();
+};
+$("#ssFinish").onclick = () => {
+  const sum = streetSummary(ssItem.key);
+  if (sum.status) { undo(ssItem.key); renderStreetScreen(); return; }
+  logVisit(ssItem, "worked", `${sum.doors} doors`);
+  closeStreet();
+};
 function undo(key) {
   for (let i = visits.length - 1; i >= 0; i--) if (visits[i].key === key) { visits.splice(i, 1); break; }
-  store.set("visits", visits); renderAll();
+  store.set("visits", visits); renderStreetScreen(); renderAll();
 }
 
 let pending = null;
-function openSheet(item, outcome) {
+function openSheet(item, outcome, choices = null) {
   pending = {item, outcome};
-  $("#sheetTitle").textContent = `${LABEL[outcome]}: ${item.label}`;
+  $("#sheetTitle").textContent = item.label;
   $("#sheetSub").textContent = item.sub || "";
-  $("#sheetNote").value = "";
-  $("#sheetWhen").style.display = outcome === "callback" ? "" : "none";
-  const d = new Date(Date.now() + 2 * 864e5); $("#sheetDate").value = d.toISOString().slice(0, 10);
-  $("#sheet").classList.add("on"); $("#sheetNote").focus();
+  const ch = $("#sheetChoices");
+  ch.style.display = choices ? "" : "none";
+  ch.innerHTML = (choices || []).map(c => `<button data-choice="${c}">${LABEL[c]}</button>`).join("");
+  const prev = lastVisit(item.key);
+  $("#sheetNote").value = prev && prev.outcome === outcome ? prev.note || "" : "";
+  const d = new Date(Date.now() + 2 * 864e5); $("#sheetDate").value = prev?.due || d.toISOString().slice(0, 10);
+  pickChoice(outcome);
+  $("#sheet").classList.add("on");
 }
+function pickChoice(o) {
+  pending.outcome = o;
+  document.querySelectorAll("#sheetChoices button").forEach(b => b.classList.toggle("on", b.dataset.choice === o));
+  $("#sheetWhen").style.display = o === "callback" ? "" : "none";
+  if (!$("#sheetChoices").innerHTML) $("#sheetTitle").textContent = `${LABEL[o]}: ${pending.item.label}`;
+}
+$("#sheetChoices").onclick = e => { const b = e.target.closest("[data-choice]"); if (b) pickChoice(b.dataset.choice); };
 $("#sheetCancel").onclick = () => $("#sheet").classList.remove("on");
 $("#sheetSave").onclick = () => {
   const {item, outcome} = pending;
@@ -194,7 +381,8 @@ function shopItem(b) {
 
 function filtered(list) {
   const town = $("#town").value, showDone = $("#showDone").getAttribute("aria-pressed") === "true";
-  let out = list.filter(i => (!town || i.raw.town === town || (i.raw.address || "").includes(town)) && (showDone || !isDone(i.key)) && i.lat != null);
+  const done = i => i.kind === "street" ? streetDone(i.key) : isDone(i.key);
+  let out = list.filter(i => (!town || i.raw.town === town || (i.raw.address || "").includes(town)) && (showDone || !done(i)) && i.lat != null);
   if (here) { out.forEach(i => i.d = dist(here[0], here[1], i.lat, i.lng)); out.sort((a, b) => a.d - b.d); }
   return out;
 }
@@ -204,11 +392,19 @@ function renderStreets() {
   const el = $("#v-streets");
   if (!list.length) { el.innerHTML = `<div class="empty">Nothing left here — try another town or turn on “Show visited”.</div>`; return; }
   el.innerHTML = list.slice(0, shown.streets).map(i => {
-    const s = i.raw, done = isDone(i.key);
-    return `<div class="card ${done ? "done" : ""}">
-      <div class="row"><div class="t">${esc(s.street)}</div><div class="score">${s.score}</div></div>
+    const s = i.raw, sum = streetSummary(i.key);
+    const nav = `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${i.lat},${i.lng}`;
+    let summary = "";
+    if (sum.status) summary = `<div class="summary"><b>${LABEL[sum.status.outcome]}</b> ${ago(sum.status.ts)}${sum.doors ? ` · ${sum.doors} doors` : ""}</div>`;
+    else if (sum.doors) summary = `<div class="summary"><b>${sum.doors} door${sum.doors === 1 ? "" : "s"} knocked</b> · last ${ago(sum.last)}`
+      + [[sum.appts, "appt"], [sum.sold, "sold"], [sum.callbacks, "callback"], [sum.notHome, "not home"]].filter(x => x[0]).map(([n, w]) => ` · ${n} ${w}`).join("") + `</div>`;
+    return `<div class="card tap ${sum.status ? "done" : ""}" data-card="${esc(i.key)}">
+      <div class="row"><div class="t">${esc(s.street)} <span class="meta">›</span></div><div class="score">${s.score}</div></div>
       <div class="meta">${esc(s.town)}${i.d != null ? " · " + fmtDist(i.d) + " away" : ""}</div>
-      <ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>${actions(i)}</div>`;
+      <ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
+      <div class="acts"><a class="btn" href="${nav}" target="_blank" rel="noopener">Go</a>
+        <button class="btn primary" data-knock="${esc(i.key)}">${sum.doors ? "Continue street" : "Open street"}</button>
+        ${sum.status ? "" : `<button class="btn" data-skip="${esc(i.key)}">Skip</button>`}</div>${summary}</div>`;
   }).join("") + (list.length > shown.streets ? `<button class="btn more" data-more="streets">Show more (${list.length - shown.streets} left)</button>` : "");
   list.forEach(i => ITEMS.set(i.key, i));
 }
@@ -246,33 +442,123 @@ function renderNews() {
     <li>Doorstep sales have a 14-day cancellation right — say so.</li></ul></div>`;
 }
 
+// ---- Log: stats by day / week / month ----
+const DOOR_KNOCKS = new Set(["not_home", "not_interested", "callback", "appointment", "sold", "no_cold_callers", "do_not_return"]);
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const startOfWeek = d => { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const startOfMonth = d => new Date(d.getFullYear(), d.getMonth(), 1);
+const DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function tally(from, to) {
+  const t = {doors: 0, appts: 0, sold: 0, installs: 0};
+  for (const v of visits) {
+    const ts = new Date(v.ts);
+    if (ts < from || ts >= to) continue;
+    if (DOOR_KNOCKS.has(v.outcome)) t.doors++;
+    if (v.outcome === "appointment") t.appts++;
+    if (v.outcome === "sold") t.sold++;
+    if (v.outcome === "installed") t.installs++;
+  }
+  return t;
+}
+let period = store.get("period", "day");
+function periodRange(now = new Date()) {
+  if (period === "day") { const a = startOfDay(now); return [a, new Date(a.getFullYear(), a.getMonth(), a.getDate() + 1), "Today"]; }
+  if (period === "week") { const a = startOfWeek(now); return [a, new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7), "This week"]; }
+  const a = startOfMonth(now); return [a, new Date(a.getFullYear(), a.getMonth() + 1, 1), now.toLocaleString("en-GB", {month: "long"})];
+}
+function breakdown() {
+  const [from, to] = periodRange(), rows = [];
+  if (period === "week") {
+    for (let i = 0; i < 7; i++) { const a = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+      rows.push([`${DAY[i]} ${a.getDate()}`, tally(a, new Date(a.getFullYear(), a.getMonth(), a.getDate() + 1)), ymd(a) === ymd(new Date())]); }
+  } else if (period === "month") {
+    let a = startOfWeek(from);
+    while (a < to) { const b = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 7);
+      rows.push([`w/c ${a.getDate()} ${a.toLocaleString("en-GB", {month: "short"})}`, tally(a < from ? from : a, b > to ? to : b), new Date() >= a && new Date() < b]); a = b; }
+  }
+  if (!rows.length) return "";
+  return `<div class="card"><table class="bd"><tr><th></th><th>Doors</th><th>Appts</th><th>Sold</th><th>Installs</th></tr>` +
+    rows.map(([l, t, cur]) => `<tr class="${cur ? "cur" : ""}"><td>${l}</td><td>${t.doors}</td><td>${t.appts}</td><td>${t.sold}</td><td>${t.installs}</td></tr>`).join("") + `</table></div>`;
+}
+
 function renderLog() {
   const el = $("#v-log");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd(new Date());
   const latest = new Map(); visits.forEach(v => latest.set(v.key, v));
   const callbacks = [...latest.values()].filter(v => v.outcome === "callback").sort((a, b) => (a.due || "").localeCompare(b.due || ""));
   const due = callbacks.filter(v => !v.due || v.due <= today);
   const cnt = $("#cbCount"); cnt.hidden = !due.length; cnt.textContent = due.length;
-  const todays = visits.filter(v => v.ts.slice(0, 10) === today);
-  let html = `<div class="stats">
-    <div class="stat"><b>${todays.length}</b><span>doors today</span></div>
-    <div class="stat"><b>${visits.filter(v => v.outcome === "appointment").length}</b><span>appointments</span></div>
-    <div class="stat"><b>${visits.filter(v => v.outcome === "sold").length}</b><span>sold</span></div></div>`;
+  const toInstall = [...latest.values()].filter(v => v.outcome === "sold");
+  const [from, to, title] = periodRange(), t = tally(from, to);
+
+  let html = `<div class="seg period" id="period">${[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([k, l]) =>
+      `<button data-period="${k}" class="${period === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    <h2>${esc(title)}</h2>
+    <div class="stats four">
+      <div class="stat"><b>${t.doors}</b><span>doors</span></div>
+      <div class="stat"><b>${t.appts}</b><span>appointments</span></div>
+      <div class="stat"><b>${t.sold}</b><span>sold</span></div>
+      <div class="stat"><b>${t.installs}</b><span>installs</span></div></div>${breakdown()}`;
+
   html += `<h2>Callbacks</h2>` + (callbacks.length ? callbacks.map(v => `<div class="card">
       <div class="row"><div class="t">${esc(v.label)}</div><div class="meta" style="color:${(!v.due || v.due <= today) ? "var(--accent)" : "var(--muted)"}">${v.due ? (v.due <= today ? "due " : "") + v.due : "no date"}</div></div>
       ${v.note ? `<div class="meta">${esc(v.note)}</div>` : ""}
       <div class="acts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${v.lat},${v.lng}" target="_blank" rel="noopener">Go</a>
-      ${OUTCOMES.filter(o => o[0] !== "callback").map(([k, l, c]) => `<button class="btn ${c}" data-key="${esc(v.key)}" data-o="${k}">${l}</button>`).join("")}</div></div>`).join("")
-    : `<div class="card meta">No callbacks yet.</div>`);
+      ${[["not_home", "Out"], ["not_interested", "✗ No"], ["appointment", "Appt"], ["sold", "Sold ✓"]].map(([k, l]) => `<button class="btn" data-key="${esc(v.key)}" data-o="${k}">${l}</button>`).join("")}</div></div>`).join("")
+    : `<div class="card meta">No callbacks.</div>`);
+
+  html += `<h2>Sold — waiting for install</h2>` + (toInstall.length ? toInstall.map(v => `<div class="card"><div class="row"><div class="t">${esc(v.label)}</div><div class="meta">sold ${ago(v.ts)}</div></div>
+      ${v.note ? `<div class="meta">${esc(v.note)}</div>` : ""}
+      <div class="acts"><button class="btn primary" data-installed="${esc(v.key)}">Mark installed ✓</button></div></div>`).join("")
+    : `<div class="card meta">Nothing waiting.</div>`);
+
   html += `<h2>History</h2><div class="card">` + (visits.length ? visits.slice().reverse().slice(0, 100).map(v =>
-      `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${LABEL[v.outcome]}</b> · ${esc(v.label)}
+      `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${LABEL[v.outcome] || v.outcome}</b> · ${esc(v.label)}
        <div class="meta">${new Date(v.ts).toLocaleString("en-GB", {dateStyle: "short", timeStyle: "short"})}${v.note ? " — " + esc(v.note) : ""}</div></div>`).join("")
-    : `<div class="meta">Nothing logged yet.</div>`) + `</div>`;
-  html += `<div class="acts"><button class="btn" id="export">Export CSV</button></div>
+    : `<div class="meta">Nothing logged yet.</div>`) + `</div>
+    <div class="acts"><button class="btn" id="export">Export CSV</button></div>
     <p class="meta">Visits are saved on this phone only. Export regularly until sync is added.</p>`;
+
+  const queued = store.get("feedbackQueue", []);
+  html += `<h2>Feedback &amp; issues</h2><div class="card">
+    <div class="meta">Something wrong or missing? This goes privately to the developer. Don't include customers' personal details.</div>
+    <div class="seg choices" id="fbType">${["Bug", "Idea", "Wrong data"].map((l, i) => `<button data-fb="${l}" class="${i ? "" : "on"}">${l}</button>`).join("")}</div>
+    <textarea id="fbText" placeholder="What happened? Which page or street?" maxlength="4000"></textarea>
+    <div class="acts"><button class="btn primary" id="fbSend">Send feedback</button></div>
+    ${queued.length ? `<div class="meta">${queued.length} message${queued.length > 1 ? "s" : ""} waiting to send — will retry automatically.</div>` : ""}</div>`;
   el.innerHTML = html;
   $("#export").onclick = exportCsv;
-  callbacks.forEach(v => ITEMS.has(v.key) || ITEMS.set(v.key, {kind: v.kind, key: v.key, label: v.label, lat: v.lat, lng: v.lng}));
+  $("#period").onclick = e => { const b = e.target.closest("[data-period]"); if (!b) return; period = b.dataset.period; store.set("period", period); renderLog(); };
+  $("#fbType").onclick = e => { const b = e.target.closest("[data-fb]"); if (!b) return; document.querySelectorAll("#fbType button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#fbSend").onclick = sendFeedback;
+  [...callbacks, ...toInstall].forEach(v => ITEMS.has(v.key) || ITEMS.set(v.key, {kind: v.kind, key: v.key, label: v.label, lat: v.lat, lng: v.lng, street: v.street, door: v.door}));
+}
+
+// ---- Feedback: POST to /api/feedback (Cloudflare Pages Function → private GitHub issue) ----
+async function postFeedback(msg) {
+  const r = await fetch("api/feedback", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(msg)});
+  if (!r.ok) throw new Error(r.status);
+}
+async function sendFeedback() {
+  const text = $("#fbText").value.trim();
+  if (!text) return toast("Type a message first");
+  const type = document.querySelector("#fbType button.on")?.dataset.fb || "Bug";
+  const msg = {type, message: text, page: current, generated: DATA?.generated || "", at: new Date().toISOString()};
+  $("#fbSend").disabled = true;
+  try { await postFeedback(msg); toast("Thanks — feedback sent"); $("#fbText").value = ""; }
+  catch { store.set("feedbackQueue", [...store.get("feedbackQueue", []), msg]); toast("No signal? Saved — will send later"); $("#fbText").value = ""; }
+  $("#fbSend").disabled = false; renderLog();
+}
+async function flushFeedback() {
+  const q = store.get("feedbackQueue", []);
+  if (!q.length) return;
+  const left = [];
+  for (const m of q) { try { await postFeedback(m); } catch { left.push(m); } }
+  store.set("feedbackQueue", left);
+  if (left.length < q.length) renderLog();
 }
 
 function exportCsv() {
@@ -293,7 +579,6 @@ function renderMap() {
   }
   if (layers) layers.remove();
   layers = L.layerGroup().addTo(map);
-  DATA.burglaries.forEach(([la, ln]) => L.circleMarker([la, ln], {radius: 3, stroke: false, fillColor: "#7a7f87", fillOpacity: .55}).addTo(layers));
   const streets = filtered(DATA.streets.map(streetItem)).slice(0, 150);
   const max = Math.max(...streets.map(s => s.raw.score), 1);
   streets.forEach(i => L.circleMarker([i.lat, i.lng], {radius: 6 + 8 * i.raw.score / max, color: accent, weight: 2, fillColor: accent, fillOpacity: .35})
@@ -301,6 +586,7 @@ function renderMap() {
       <a href="https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${i.lat},${i.lng}" target="_blank">Go →</a>`).addTo(layers));
   filtered(DATA.businesses.map(shopItem)).slice(0, 80).forEach(i => L.circleMarker([i.lat, i.lng], {radius: 6, color: "#2563eb", weight: 2, fillColor: "#2563eb", fillOpacity: .3})
     .bindPopup(`<b>${esc(i.label)}</b><br>${esc(i.sub)}<br>${i.raw.talking_points.map(esc).join("<br>")}`).addTo(layers));
+  DATA.burglaries.forEach(([la, ln]) => L.circleMarker([la, ln], {radius: 5, interactive: false, stroke: false, fillColor: "#8b2fc9", fillOpacity: .7}).addTo(layers));
   if (here) L.circleMarker(here, {radius: 8, color: "#fff", weight: 3, fillColor: "#2563eb", fillOpacity: 1}).addTo(layers);
   setTimeout(() => map.invalidateSize(), 50);
 }
@@ -322,6 +608,14 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.da
 
 document.addEventListener("click", e => {
   const o = e.target.closest("[data-o]"), u = e.target.closest("[data-undo]"), m = e.target.closest("[data-more]");
+  const k = e.target.closest("[data-knock]"), sk = e.target.closest("[data-skip]"),
+        tk = e.target.closest("[data-tick]"), md = e.target.closest("[data-more-door]"), inst = e.target.closest("[data-installed]");
+  if (tk) { tick(tk.dataset.d, tk.dataset.tick); return; }
+  if (md) { openSheet(doorItem(md.dataset.moreDoor), "not_home", ["not_home", "not_interested", "no_cold_callers", "callback", "appointment", "sold"]); return; }
+  if (inst) { const it = ITEMS.get(inst.dataset.installed); if (it) logVisit(it, "installed"); return; }
+  if (sk) { const it = ITEMS.get(sk.dataset.skip); if (it) logVisit(it, "skipped"); return; }
+  const card = e.target.closest("[data-card]");
+  if (k || (card && !e.target.closest("a,button"))) { const it = ITEMS.get(k ? k.dataset.knock : card.dataset.card); if (it) openStreet(it); return; }
   if (o) {
     const item = ITEMS.get(o.dataset.key); if (!item) return;
     if (["callback", "appointment", "sold"].includes(o.dataset.o)) openSheet(item, o.dataset.o);
@@ -347,7 +641,7 @@ fetch("data.json", {cache: "no-cache"}).then(r => r.json()).then(d => {
   const towns = [...new Set(d.streets.map(s => s.town))].sort();
   $("#town").innerHTML += towns.map(t => `<option>${esc(t)}</option>`).join("");
   $("#town").value = store.get("town", "");
-  renderAll(); renderNews();
+  renderAll(); renderNews(); flushFeedback();
 }).catch(() => { $("#v-streets").innerHTML = `<div class="empty">Couldn't load today's leads.</div>`; });
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

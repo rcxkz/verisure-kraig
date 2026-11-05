@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "17 5 * * *"   # 05:17 UTC every day (5:17am GMT / 6:17am BST)
   workflow_dispatch:         # "Run workflow" button for a manual refresh
+  push:
+    branches: [main]         # redeploy as soon as app changes are merged
 
 concurrency: daily-leads
 
