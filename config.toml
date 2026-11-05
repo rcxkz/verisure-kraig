@@ -1,0 +1,153 @@
+# Essex Lead Finder — configuration
+# Edit towns, postcode districts and councils to change the patch.
+
+[settings]
+crime_months = 3            # how many of the latest police-data months to use
+news_days = 14              # how far back to look for news stories
+sales_months = 6            # how recent a house sale counts as a "new owner"
+revisit_cooldown_days = 21  # hide streets/businesses visited within this window
+top_streets = 40
+top_businesses = 40
+nearby_metres = 500         # "within a 5-minute walk"
+user_agent = "essex-lead-finder/0.1 (personal sales research tool)"
+
+# Towns are the search centres. The police API returns crimes within ~1 mile
+# of each point, so add more points to cover bigger towns.
+# `include = false` keeps a town in the file without searching it.
+[[towns]]
+name = "Tilbury"
+lat = 51.4625
+lng = 0.3586
+
+[[towns]]
+name = "Chadwell St Mary"
+lat = 51.4833
+lng = 0.3667
+
+[[towns]]
+name = "Grays"
+lat = 51.4757
+lng = 0.3238
+
+[[towns]]
+name = "Chafford Hundred"
+lat = 51.4870
+lng = 0.2880
+
+[[towns]]
+name = "South Ockendon"
+lat = 51.5079
+lng = 0.2836
+
+[[towns]]
+name = "Aveley"
+lat = 51.4993
+lng = 0.2533
+
+[[towns]]
+name = "Purfleet"
+lat = 51.4813
+lng = 0.2373
+
+[[towns]]
+name = "Orsett"
+lat = 51.5110
+lng = 0.3720
+
+[[towns]]
+name = "Stanford-le-Hope"
+lat = 51.5144
+lng = 0.4286
+
+[[towns]]
+name = "Corringham"
+lat = 51.5225
+lng = 0.4555
+
+[[towns]]
+name = "Basildon"
+lat = 51.5761
+lng = 0.4886
+
+[[towns]]
+name = "Pitsea"
+lat = 51.5640
+lng = 0.5070
+
+[[towns]]
+name = "Laindon"
+lat = 51.5740
+lng = 0.4200
+
+[[towns]]
+name = "Billericay"
+lat = 51.6283
+lng = 0.4198
+
+[[towns]]
+name = "Wickford"
+lat = 51.6110
+lng = 0.5207
+
+[[towns]]
+name = "Brentwood"
+lat = 51.6214
+lng = 0.3054
+
+[[towns]]
+name = "Canvey Island"
+lat = 51.5232
+lng = 0.5806
+
+[[towns]]
+name = "Benfleet"
+lat = 51.5520
+lng = 0.5590
+
+[[towns]]
+name = "Upminster"
+lat = 51.5557
+lng = 0.2512
+include = true   # Havering (Met Police) — just over the border
+
+# Postcode districts used to filter Land Registry sales (new homeowners)
+[landreg]
+postcode_districts = [
+  "RM16", "RM17", "RM18", "RM19", "RM20",   # Thurrock
+  "SS17",                                   # Stanford / Corringham
+  "SS13", "SS14", "SS15", "SS16",           # Basildon
+  "SS11", "SS12",                           # Wickford
+  "CM11", "CM12",                           # Billericay
+  "CM13", "CM14", "CM15",                   # Brentwood
+  "SS7", "SS8",                             # Benfleet / Canvey
+  "RM14",                                   # Upminster
+]
+
+# Food Standards Agency councils (for newly registered food businesses)
+[fsa]
+councils = ["Thurrock", "Basildon", "Brentwood", "Castle Point", "Havering"]
+
+# Companies House (optional — set COMPANIES_HOUSE_API_KEY to enable).
+# Only new companies whose SIC code starts with one of these are kept.
+[companies_house]
+lookback_days = 60
+sic_prefixes = [
+  "47",    # retail
+  "56",    # restaurants, takeaways, pubs
+  "55",    # hotels / B&Bs
+  "45",    # motor trade, garages
+  "9602",  # hair & beauty
+  "9604",  # gyms / wellbeing
+  "75",    # vets
+  "8623",  # dentists
+]
+
+# No Cold Calling Zones and anywhere he must not knock.
+# Entries are matched against "Street, Town" (case-insensitive) or a postcode prefix.
+[exclusions]
+streets = [
+  # "Example Road, Grays",
+]
+postcode_prefixes = [
+  # "RM17 5",
+]

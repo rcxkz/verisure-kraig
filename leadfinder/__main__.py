@@ -1,0 +1,98 @@
+"""CLI.
+
+  python -m leadfinder run                      fetch everything, score, write today's report
+  python -m leadfinder report                   re-score from stored data (no network)
+  python -m leadfinder log street "DOCK ROAD|Tilbury" callback --note "wife home after 6"
+  python -m leadfinder log business fsa:1234567 appointment
+  python -m leadfinder history                  recent logged visits
+"""
+import argparse
+import sys
+from datetime import date, datetime, timedelta
+
+from . import config, db, report, scoring
+from .http import session
+from .sources import companies_house, fsa, landreg, news, police
+
+OUTCOMES = ["not_home", "not_interested", "callback", "appointment", "sold", "do_not_return"]
+SOURCES = [("Police (data.police.uk)", police), ("News (Google News)", news),
+           ("Land Registry sales", landreg), ("FSA new food businesses", fsa),
+           ("Companies House", companies_house)]
+
+
+def fetch_all(conn, cfg):
+    sess = session(cfg["settings"]["user_agent"])
+    statuses = {}
+    for name, mod in SOURCES:
+        msgs = []
+        try:
+            mod.fetch(conn, sess, cfg, msgs.append)
+            statuses[name] = "; ".join(msgs) or "ok"
+        except Exception as e:  # one broken source shouldn't kill the report
+            statuses[name] = f"FAILED — {type(e).__name__}: {e}"
+        print(f"  {name}: {statuses[name]}")
+    return statuses
+
+
+def build(conn, cfg, statuses):
+    today = date.today()
+    s = cfg["settings"]
+    months = [r["month"] for r in conn.execute("SELECT DISTINCT month FROM crimes ORDER BY month DESC")]
+    use = months[: s["crime_months"]]
+    latest = use[0] if use else None
+    crimes = db.rows(conn, f"SELECT * FROM crimes WHERE month IN ({','.join('?' * len(use))})", use) if use else []
+    sales_since = (today - timedelta(days=30 * s["sales_months"])).isoformat()
+    sales = db.rows(conn, "SELECT * FROM sales WHERE date >= ?", (sales_since,))
+    news_since = (datetime.now() - timedelta(days=s["news_days"])).isoformat()[:10]
+    stories = db.rows(conn, "SELECT * FROM news WHERE published >= ? ORDER BY published DESC", (news_since,))
+    # only businesses still present in the latest fetch (dropped ones have been inspected / closed)
+    newest = conn.execute("SELECT MAX(last_seen) FROM businesses").fetchone()[0]
+    biz = db.rows(conn, "SELECT * FROM businesses WHERE last_seen = ?", (newest,)) if newest else []
+    visits = db.rows(conn, "SELECT * FROM visits")
+
+    streets, skipped = scoring.score_streets(crimes, sales, stories, visits, cfg, latest, today)
+    first_run = conn.execute("SELECT COUNT(*) FROM businesses WHERE first_seen < ?",
+                             (today.isoformat(),)).fetchone()[0] == 0
+    businesses = scoring.score_businesses(biz, crimes, visits, cfg, latest, today, first_run)
+    hotspots = scoring.retail_hotspots(crimes)
+    statuses = {**statuses, "Hidden (visited recently / excluded)": f"{skipped} streets"}
+    path = report.write_all(config.OUTPUT_DIR / today.isoformat(), today, streets, businesses,
+                            hotspots, stories, statuses, cfg, latest)
+    print(f"\n{len(streets)} streets, {len(businesses)} businesses, {len(stories)} news stories")
+    print(f"Report: {path}")
+    return path
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog="leadfinder")
+    p.add_argument("--config")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("run")
+    sub.add_parser("report")
+    lg = sub.add_parser("log")
+    lg.add_argument("kind", choices=["street", "business"])
+    lg.add_argument("key", help='street: "DOCK ROAD|Tilbury" (shown on the report); business: fsa:123 / companies_house:0123')
+    lg.add_argument("outcome", choices=OUTCOMES)
+    lg.add_argument("--note", default="")
+    sub.add_parser("history")
+    a = p.parse_args(argv)
+
+    cfg = config.load(a.config)
+    conn = db.connect()
+    if a.cmd == "run":
+        print("Fetching…")
+        build(conn, cfg, fetch_all(conn, cfg))
+    elif a.cmd == "report":
+        build(conn, cfg, {"note": "re-scored from stored data, no fetch"})
+    elif a.cmd == "log":
+        conn.execute("INSERT INTO visits (kind, key, outcome, note, ts) VALUES (?,?,?,?,?)",
+                     (a.kind, a.key, a.outcome, a.note, datetime.now().isoformat(timespec="seconds")))
+        conn.commit()
+        print(f"Logged {a.outcome} for {a.key}")
+    elif a.cmd == "history":
+        for v in db.rows(conn, "SELECT * FROM visits ORDER BY ts DESC LIMIT 50"):
+            print(f"{v['ts']}  {v['outcome']:<15} {v['key']}  {v['note']}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())
