@@ -36,7 +36,7 @@ PLANNING_CAP = 3
 W_NEWBUILD = 1.5          # each new-build sale, capped
 NEWBUILD_CAP = 4
 W_CHAIN = -2.0            # chain stores: head office decides
-W_NEW_BUSINESS = 3.0      # newly registered (FSA / Companies House) — beats long-established shops
+W_NEW_BUSINESS = 3.0      # newly registered (FSA) — beats long-established shops
 BUSINESS_CRIME_CAP = 6.0   # stop shopping-centre units swamping the list
 
 MONTH_NAMES = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
@@ -227,7 +227,7 @@ def score_businesses(businesses, crimes, visits, cfg, latest_month, today, first
         score = BUSINESS_TYPE_WEIGHT.get(b["btype"], OSM_WEIGHT.get(b["btype"], 1))
         if b.get("chain"):
             score += W_CHAIN
-        if b["source"] in ("fsa", "companies_house"):
+        if b["source"] == "fsa":
             score += W_NEW_BUSINESS
         pts = [b["signal"]]
         near = defaultdict(int)

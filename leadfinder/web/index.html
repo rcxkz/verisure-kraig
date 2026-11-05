@@ -449,7 +449,7 @@ function renderShops() {
       `<div class="row" style="padding:5px 0;border-bottom:1px solid var(--line)"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.street + ", " + h.town)}" target="_blank" rel="noopener">${esc(h.street)}, ${esc(h.town)}</a>
        <span class="meta">${h.shoplifting} shoplifting · ${h.robbery} robbery</span></div>`).join("") + `</div>`;
   }
-  html += `<p class="meta">Business details include data © OpenStreetMap contributors (ODbL), Food Standards Agency and Companies House.</p>`;
+  html += `<p class="meta">Business details include data © OpenStreetMap contributors (ODbL), and the Food Standards Agency.</p>`;
   el.innerHTML = list.length || DATA.hotspots?.length ? html : html + `<div class="empty">No businesses match.</div>`;
   list.forEach(i => ITEMS.set(i.key, i));
 }

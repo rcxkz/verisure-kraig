@@ -12,13 +12,13 @@ from datetime import date, datetime, timedelta
 
 from . import config, db, report, scoring, site
 from .http import session
-from .sources import census, companies_house, fsa, landreg, landreg_history, news, osm, planning, police
+from .sources import census, fsa, landreg, landreg_history, news, osm, planning, police
 
 OUTCOMES = ["not_home", "not_interested", "callback", "appointment", "sold", "do_not_return"]
 SOURCES = [("Police (data.police.uk)", police), ("News (Google News)", news),
            ("Land Registry sales", landreg), ("Door numbers (10 yrs of sales)", landreg_history),
            ("Planning applications (PlanIt)", planning), ("FSA new food businesses", fsa),
-           ("OpenStreetMap businesses", osm), ("Companies House", companies_house)]
+           ("OpenStreetMap businesses", osm)]
 
 
 def fetch_all(conn, cfg):
@@ -92,7 +92,7 @@ def main(argv=None):
     sub.add_parser("report")
     lg = sub.add_parser("log")
     lg.add_argument("kind", choices=["street", "business"])
-    lg.add_argument("key", help='street: "DOCK ROAD|Tilbury" (shown on the report); business: fsa:123 / companies_house:0123')
+    lg.add_argument("key", help='street: "DOCK ROAD|Tilbury" (shown on the report); business: fsa:123 / osm:node/123')
     lg.add_argument("outcome", choices=OUTCOMES)
     lg.add_argument("--note", default="")
     sub.add_parser("history")

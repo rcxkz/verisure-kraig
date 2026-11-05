@@ -53,7 +53,6 @@ A logged street or business is hidden for 21 days. One logged as `sold` or `do_n
 | Census 2021 (Nomis, TS054) | % owner-occupied around each street, used to weight the score | Static, cached |
 | Food Standards Agency | New food businesses awaiting first inspection | Daily |
 | OpenStreetMap (Overpass) | Every named shop / pub / garage / salon, often with phone and hours | Daily |
-| Companies House (optional) | Newly incorporated shops, salons, cafés, garages | Daily. Needs a free key: GitHub secret `COMPANIES_HOUSE_API_KEY` |
 
 **Checked and deliberately not used:**
 - **EPC register:** its address data is licensed for energy-efficiency purposes only.
