@@ -46,5 +46,9 @@ NON_STREETS = (
 )
 
 
+NON_STREET_WORDS = ("SERVICE AREA", "CAR PARK", "RETAIL PARK", "SHOPPING CENTRE", "INDUSTRIAL ESTATE",
+                    "BUSINESS PARK", "TRADING ESTATE", "INTERCHANGE", "ROUNDABOUT", "MOTORWAY", "SLIP ROAD")
+
+
 def is_door_street(norm):
-    return bool(norm) and norm not in NON_STREETS
+    return bool(norm) and norm not in NON_STREETS and not any(w in norm for w in NON_STREET_WORDS)

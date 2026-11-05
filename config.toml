@@ -123,6 +123,11 @@ postcode_districts = [
   "RM14",                                   # Upminster
 ]
 
+# Planning applications via PlanIt (planit.org.uk)
+[planning]
+authorities = ["Thurrock", "Basildon", "Brentwood", "Castle Point", "Havering"]
+days = 60
+
 # Food Standards Agency councils (for newly registered food businesses)
 [fsa]
 councils = ["Thurrock", "Basildon", "Brentwood", "Castle Point", "Havering"]

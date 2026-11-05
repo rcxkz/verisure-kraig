@@ -47,9 +47,18 @@ A logged street or business is hidden for 21 days. One logged as `sold` or `do_n
 |---|---|---|
 | data.police.uk | Burglary, robbery, vehicle crime, shoplifting by street | Monthly, ~2 month lag |
 | Google News RSS | Local crime stories naming a town in the patch | Daily |
-| HM Land Registry Price Paid | Recent house sales = new homeowners (house numbers) | Monthly |
+| HM Land Registry (last 6 months) | Recent sales = new owners, plus new-build flag | Monthly |
+| HM Land Registry (10 years) | Real house numbers / names per street for the door list | Every 120 days |
+| PlanIt (planit.org.uk) | Planning applications: extensions, new homes, business change of use | Daily |
+| Census 2021 (Nomis, TS054) | % owner-occupied around each street, used to weight the score | Static, cached |
 | Food Standards Agency | New food businesses awaiting first inspection | Daily |
-| Companies House (optional) | Newly incorporated shops, salons, cafés, garages | Daily. Needs a free key: `export COMPANIES_HOUSE_API_KEY=...` |
+| OpenStreetMap (Overpass) | Every named shop / pub / garage / salon, often with phone and hours | Daily |
+| Companies House (optional) | Newly incorporated shops, salons, cafés, garages | Daily. Needs a free key: GitHub secret `COMPANIES_HOUSE_API_KEY` |
+
+**Checked and deliberately not used:**
+- **EPC register:** its address data is licensed for energy-efficiency purposes only.
+- **VOA business rates list:** restricted to business-rates purposes only.
+- **Essex Community Messaging:** email alerts only. Kraig should subscribe himself.
 
 ## Tuning
 

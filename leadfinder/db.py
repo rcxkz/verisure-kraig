@@ -42,6 +42,11 @@ def connect(path=None):
     conn = sqlite3.connect(path or DATA_DIR / "leads.db")
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for col in ("phone TEXT", "chain INTEGER"):
+        try:
+            conn.execute(f"ALTER TABLE businesses ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass  # already there
     return conn
 
 

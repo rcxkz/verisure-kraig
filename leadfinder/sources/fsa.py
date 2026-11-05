@@ -28,7 +28,7 @@ def parse(establishments, today):
             "source": "fsa", "ext_id": str(e["FHRSID"]), "name": e.get("BusinessName", ""),
             "btype": e.get("BusinessType", ""), "address": _addr(e), "postcode": e.get("PostCode", ""),
             "lat": lat, "lng": lng, "signal": "New food business (awaiting first inspection)",
-            "signal_date": None, "today": today,
+            "signal_date": None, "today": today, "phone": (e.get("Phone") or "").strip(),
         })
     return out
 
@@ -57,9 +57,12 @@ def fetch(conn, sess, cfg, log):
 
 def upsert(conn, b):
     """Insert or refresh a business; returns 1 if never seen before."""
+    b = {"phone": "", "chain": 0, **b}
     cur = conn.execute(
-        "INSERT OR IGNORE INTO businesses VALUES (:source,:ext_id,:name,:btype,:address,:postcode,"
-        ":lat,:lng,:signal,:signal_date,:today,:today)", b)
+        "INSERT OR IGNORE INTO businesses (source, ext_id, name, btype, address, postcode, lat, lng, signal, "
+        "signal_date, first_seen, last_seen, phone, chain) VALUES (:source,:ext_id,:name,:btype,:address,:postcode,"
+        ":lat,:lng,:signal,:signal_date,:today,:today,:phone,:chain)", b)
     if cur.rowcount == 0:
-        conn.execute("UPDATE businesses SET last_seen=:today, signal=:signal WHERE source=:source AND ext_id=:ext_id", b)
+        conn.execute("UPDATE businesses SET last_seen=:today, signal=:signal, phone=COALESCE(NULLIF(:phone,''), phone), "
+                     "btype=:btype, name=:name WHERE source=:source AND ext_id=:ext_id", b)
     return cur.rowcount
