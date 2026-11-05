@@ -254,36 +254,49 @@ function openStreet(item) {
 }
 function closeStreet() { $("#ss").classList.remove("on"); ssItem = null; renderAll(); }
 
+const titleCase = d => /\d/.test(d) && d.length <= 6 ? d : d.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+function soldNumbersOn(streetKey) {
+  return visits.filter(v => v.kind === "door" && v.street === streetKey && (v.outcome === "sold" || v.outcome === "installed"))
+    .map(v => doorNum(v.door)).filter(Number.isFinite);
+}
 function streetDoorList(item, latest) {
   const s = item.raw, pref = streetPrefs(item.key);
-  const known = [...(s.sale_doors || []), ...latest.keys(), ...(pref.extra || [])];
-  const maxKnown = Math.max(0, ...known.map(doorNum).filter(Number.isFinite));
-  const max = pref.max || Math.max(30, Math.ceil(maxKnown / 2) * 2);
+  const real = s.doors || [];
+  const known = [...real, ...(s.new_owner_doors || []), ...latest.keys(), ...(pref.extra || [])];
+  const nums = known.map(doorNum).filter(Number.isFinite);
+  const maxKnown = Math.max(0, ...nums);
+  // With real numbers from sales history, fill the gaps up to the highest one; otherwise guess 1–30
+  const max = pref.max || (real.length >= 3 ? maxKnown : Math.max(30, Math.ceil(maxKnown / 2) * 2));
   const par = pref.par || store.get("parity", "all");
   const set = new Set();
   for (let n = 1; n <= max; n++) set.add(String(n));
   known.forEach(d => set.add(String(d)));
   const ok = d => { const n = doorNum(d); return par === "all" || !Number.isFinite(n) || (par === "odd" ? n % 2 === 1 : n % 2 === 0); };
-  return {doors: [...set].filter(ok).sort(sortDoors), max, par};
+  return {doors: [...set].filter(ok).sort(sortDoors), max, par, real: real.length};
 }
 
 function renderStreetScreen() {
   if (!ssItem) return;
   const s = ssItem.raw, {latest, history} = doorsOn(ssItem.key);
   const sum = streetSummary(ssItem.key);
-  const {doors, max, par} = streetDoorList(ssItem, latest);
+  const {doors, max, par, real} = streetDoorList(ssItem, latest);
+  const sold = soldNumbersOn(ssItem.key);
+  const nearSale = d => { const n = doorNum(d); return Number.isFinite(n) && sold.some(x => x !== n && Math.abs(x - n) <= 4); };
   $("#ssMeta").textContent = `${s.town} · ${sum.doors} door${sum.doors === 1 ? "" : "s"} logged`
     + (sum.appts ? ` · ${sum.appts} appt` : "") + (sum.sold ? ` · ${sum.sold} sold` : "");
-  $("#ssHints").innerHTML = `<details class="tp"><summary>Talking points</summary><ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul></details>`;
+  $("#ssHints").innerHTML = (real ? `<div class="meta">House numbers from ${real} homes sold here since 2016, gaps filled in.</div>` : "")
+    + (sold.length ? `<div class="summary"><b>You've sold here</b> — knock the neighbours either side and opposite.</div>` : "")
+    + `<details class="tp"><summary>Talking points</summary><ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul></details>`;
   document.querySelectorAll("#parity button").forEach(b => b.classList.toggle("on", b.dataset.par === par));
   $("#maxDoor").value = max;
-  const owners = new Set(s.sale_doors || []);
+  const owners = new Set(s.new_owner_doors || []), planning = new Set(s.planning_doors || []);
   $("#ssDoors").innerHTML = doors.map(d => {
     const v = latest.get(d), o = v?.outcome;
     const g = GREEN.includes(o), r = RED.includes(o), out = o === "not_home";
     const status = v ? `<b class="o-${o}">${LABEL[o] || o}</b> · ${ago(v.ts)}${history.get(d) > 1 ? ` · ${history.get(d)}×` : ""}${v.note ? `<br>${esc(v.note)}` : ""}${v.due && o === "callback" ? `<br>Call back ${esc(v.due)}` : ""}`
-                     : (owners.has(d) ? `<span class="newowner">NEW OWNER</span>` : "");
-    return `<div class="door"><button class="num" data-more-door="${esc(d)}">${esc(d)}</button>
+                     : [owners.has(d) && "NEW OWNER", planning.has(d) && "PLANNING", nearSale(d) && "NEIGHBOUR"]
+                         .filter(Boolean).map(t => `<span class="newowner">${t}</span>`).join(" ");
+    return `<div class="door"><button class="num" data-more-door="${esc(d)}">${esc(titleCase(d))}</button>
       <div class="what">${status}</div>
       <button class="tick o ${out ? "on" : ""}" data-tick="out" data-d="${esc(d)}" aria-label="Not home ${esc(d)}">Out</button>
       <button class="tick r ${r ? "on" : ""}" data-tick="no" data-d="${esc(d)}" aria-label="Not interested ${esc(d)}">✗</button>
@@ -362,7 +375,8 @@ function actions(item) {
   const nav = `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${item.lat},${item.lng}`;
   const v = lastVisit(item.key);
   let html = `<div class="acts"><a class="btn primary" href="${nav}" target="_blank" rel="noopener">Go</a>`;
-  if (item.search) html += `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.search)}" target="_blank" rel="noopener">Phone / hours</a>`;
+  if (item.phone) html += `<a class="btn good" href="tel:${esc(item.phone.replace(/[^\d+]/g, ""))}">Call ${esc(item.phone)}</a>`;
+  if (item.search) html += `<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.search)}" target="_blank" rel="noopener">${item.phone ? "Maps" : "Phone / hours"}</a>`;
   for (const [k, l, cls] of OUTCOMES) html += `<button class="btn ${cls}" data-key="${esc(item.key)}" data-o="${k}">${l}</button>`;
   html += `</div>`;
   if (v) html += `<div class="logged">Last: <b>${LABEL[v.outcome]}</b> ${ago(v.ts)}${v.note ? " — " + esc(v.note) : ""}
@@ -376,7 +390,7 @@ function streetItem(s) {
 }
 function shopItem(b) {
   return {kind: "business", key: b.key, label: b.name, sub: `${b.btype} · ${b.postcode || ""}`, lat: b.lat, lng: b.lng,
-          search: `${b.name} ${b.postcode || b.address}`, raw: b};
+          search: `${b.name} ${b.postcode || b.address}`, phone: b.phone || "", raw: b};
 }
 
 function filtered(list) {
@@ -389,6 +403,9 @@ function filtered(list) {
 
 function renderStreets() {
   const list = filtered(DATA.streets.map(streetItem));
+  // streets where he's made a sale float to the top until finished: neighbour follow-ups
+  const hot = i => streetSummary(i.key).sold > 0 && !streetDone(i.key);
+  list.sort((a, b) => hot(b) - hot(a));
   const el = $("#v-streets");
   if (!list.length) { el.innerHTML = `<div class="empty">Nothing left here — try another town or turn on “Show visited”.</div>`; return; }
   el.innerHTML = list.slice(0, shown.streets).map(i => {
@@ -400,7 +417,8 @@ function renderStreets() {
       + [[sum.appts, "appt"], [sum.sold, "sold"], [sum.callbacks, "callback"], [sum.notHome, "not home"]].filter(x => x[0]).map(([n, w]) => ` · ${n} ${w}`).join("") + `</div>`;
     return `<div class="card tap ${sum.status ? "done" : ""}" data-card="${esc(i.key)}">
       <div class="row"><div class="t">${esc(s.street)} <span class="meta">›</span></div><div class="score">${s.score}</div></div>
-      <div class="meta">${esc(s.town)}${i.d != null ? " · " + fmtDist(i.d) + " away" : ""}</div>
+      <div class="meta">${esc(s.town)}${i.d != null ? " · " + fmtDist(i.d) + " away" : ""}${s.owner_share != null ? ` · ${Math.round(s.owner_share * 100)}% owner-occupied` : ""}</div>
+      ${sum.sold && !sum.status ? `<div class="summary" style="color:var(--ok)"><b style="color:var(--ok)">You've sold here</b> — knock the neighbours</div>` : ""}
       <ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
       <div class="acts"><a class="btn" href="${nav}" target="_blank" rel="noopener">Go</a>
         <button class="btn primary" data-knock="${esc(i.key)}">${sum.doors ? "Continue street" : "Open street"}</button>
@@ -409,10 +427,16 @@ function renderStreets() {
   list.forEach(i => ITEMS.set(i.key, i));
 }
 
+let shopFilter = store.get("shopFilter", "all");
 function renderShops() {
-  const list = filtered(DATA.businesses.map(shopItem));
+  let list = filtered(DATA.businesses.map(shopItem));
+  if (shopFilter === "new") list = list.filter(i => i.raw.source !== "osm");
+  if (shopFilter === "phone") list = list.filter(i => i.phone);
   const el = $("#v-shops");
-  let html = list.slice(0, shown.shops).map(i => {
+  let html = `<div class="seg period" id="shopSeg">${[["all", "All"], ["new", "New businesses"], ["phone", "Has phone"]].map(([k, l]) =>
+      `<button data-shopf="${k}" class="${shopFilter === k ? "on" : ""}">${l}</button>`).join("")}</div>`
+    + (shopFilter === "phone" ? `<div class="meta" style="margin-top:6px">Before phoning, check the number isn't on the CTPS (business do-not-call list).</div>` : "");
+  html += list.slice(0, shown.shops).map(i => {
     const b = i.raw;
     return `<div class="card ${isDone(i.key) ? "done" : ""}">
       <div class="row"><div class="t">${esc(b.name)}${b.new_today ? '<span class="badge new">NEW</span>' : ""}</div><div class="score">${b.score}</div></div>
@@ -425,7 +449,8 @@ function renderShops() {
       `<div class="row" style="padding:5px 0;border-bottom:1px solid var(--line)"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.street + ", " + h.town)}" target="_blank" rel="noopener">${esc(h.street)}, ${esc(h.town)}</a>
        <span class="meta">${h.shoplifting} shoplifting · ${h.robbery} robbery</span></div>`).join("") + `</div>`;
   }
-  el.innerHTML = html || `<div class="empty">No businesses match.</div>`;
+  html += `<p class="meta">Business details include data © OpenStreetMap contributors (ODbL), and the Food Standards Agency.</p>`;
+  el.innerHTML = list.length || DATA.hotspots?.length ? html : html + `<div class="empty">No businesses match.</div>`;
   list.forEach(i => ITEMS.set(i.key, i));
 }
 
@@ -509,6 +534,15 @@ function renderLog() {
       <div class="acts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${v.lat},${v.lng}" target="_blank" rel="noopener">Go</a>
       ${[["not_home", "Out"], ["not_interested", "✗ No"], ["appointment", "Appt"], ["sold", "Sold ✓"]].map(([k, l]) => `<button class="btn" data-key="${esc(v.key)}" data-o="${k}">${l}</button>`).join("")}</div></div>`).join("")
     : `<div class="card meta">No callbacks.</div>`);
+
+  const soldStreets = [...new Set([...latest.values()].filter(v => v.kind === "door" && (v.outcome === "sold" || v.outcome === "installed")).map(v => v.street))]
+    .filter(k => !streetDone(k));
+  if (soldStreets.length) html += `<h2>Knock the neighbours</h2>` + soldStreets.map(k => {
+    const st = DATA.streets.find(x => x.key === k), name = st ? `${st.street}, ${st.town}` : k.replace("|", ", ");
+    const n = soldNumbersOn(k);
+    return `<div class="card"><div class="t">${esc(name)}</div><div class="meta">Sold at No. ${n.join(", ")} — try ${[...new Set(n.flatMap(x => [x - 2, x + 2, x - 1, x + 1]))].filter(x => x > 0 && !n.includes(x)).sort((a, b) => a - b).join(", ")}</div>
+      <div class="acts"><button class="btn primary" data-open-street="${esc(k)}">Open street</button></div></div>`;
+  }).join("");
 
   html += `<h2>Sold — waiting for install</h2>` + (toInstall.length ? toInstall.map(v => `<div class="card"><div class="row"><div class="t">${esc(v.label)}</div><div class="meta">sold ${ago(v.ts)}</div></div>
       ${v.note ? `<div class="meta">${esc(v.note)}</div>` : ""}
@@ -611,6 +645,13 @@ document.addEventListener("click", e => {
   const k = e.target.closest("[data-knock]"), sk = e.target.closest("[data-skip]"),
         tk = e.target.closest("[data-tick]"), md = e.target.closest("[data-more-door]"), inst = e.target.closest("[data-installed]");
   if (tk) { tick(tk.dataset.d, tk.dataset.tick); return; }
+  const sf = e.target.closest("[data-shopf]");
+  if (sf) { shopFilter = sf.dataset.shopf; store.set("shopFilter", shopFilter); shown.shops = PAGE; renderShops(); return; }
+  const os = e.target.closest("[data-open-street]");
+  if (os) { const st = DATA.streets.find(x => x.key === os.dataset.openStreet);
+    const [nm, town] = os.dataset.openStreet.split("|");
+    openStreet(st ? streetItem(st) : {kind: "street", key: os.dataset.openStreet, label: nm + ", " + town, lat: 0, lng: 0,
+      raw: {street: titleCase(nm), town, talking_points: [], doors: []}}); return; }
   if (md) { openSheet(doorItem(md.dataset.moreDoor), "not_home", ["not_home", "not_interested", "no_cold_callers", "callback", "appointment", "sold"]); return; }
   if (inst) { const it = ITEMS.get(inst.dataset.installed); if (it) logVisit(it, "installed"); return; }
   if (sk) { const it = ITEMS.get(sk.dataset.skip); if (it) logVisit(it, "skipped"); return; }

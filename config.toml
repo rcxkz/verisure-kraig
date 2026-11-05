@@ -123,24 +123,14 @@ postcode_districts = [
   "RM14",                                   # Upminster
 ]
 
+# Planning applications via PlanIt (planit.org.uk)
+[planning]
+authorities = ["Thurrock", "Basildon", "Brentwood", "Castle Point", "Havering"]
+days = 60
+
 # Food Standards Agency councils (for newly registered food businesses)
 [fsa]
 councils = ["Thurrock", "Basildon", "Brentwood", "Castle Point", "Havering"]
-
-# Companies House (optional — set COMPANIES_HOUSE_API_KEY to enable).
-# Only new companies whose SIC code starts with one of these are kept.
-[companies_house]
-lookback_days = 60
-sic_prefixes = [
-  "47",    # retail
-  "56",    # restaurants, takeaways, pubs
-  "55",    # hotels / B&Bs
-  "45",    # motor trade, garages
-  "9602",  # hair & beauty
-  "9604",  # gyms / wellbeing
-  "75",    # vets
-  "8623",  # dentists
-]
 
 # No Cold Calling Zones and anywhere he must not knock.
 # Entries are matched against "Street, Town" (case-insensitive) or a postcode prefix.

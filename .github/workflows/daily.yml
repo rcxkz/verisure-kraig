@@ -32,8 +32,6 @@ jobs:
 
       - name: Fetch, score and build app
         run: python -m leadfinder run
-        env:
-          COMPANIES_HOUSE_API_KEY: ${{ secrets.COMPANIES_HOUSE_API_KEY }}
 
       - name: Save data
         if: always()
