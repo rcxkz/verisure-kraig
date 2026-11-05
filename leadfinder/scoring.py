@@ -138,7 +138,7 @@ def score_streets(crimes, sales, news, visits, cfg, latest_month, today):
             pts.append(f"{counts['burglary']} burglar{'y' if counts['burglary'] == 1 else 'ies'} "
                        f"reported on or near this street ({period}, police.uk)")
         if nearby:
-            pts.append(f"{len(nearby)} more burglar{'y' if len(nearby) == 1 else 'ies'} within a 5-minute walk")
+            pts.append(f"{len(nearby)} more burglar{'y' if len(nearby) == 1 else 'ies'} within a 5-minute walk ({near_m}m)")
         if counts["vehicle-crime"]:
             pts.append(f"{counts['vehicle-crime']} vehicle crime{'s' if counts['vehicle-crime'] > 1 else ''} "
                        "on or near this street — outdoor camera / driveway angle")
@@ -171,6 +171,7 @@ def score_businesses(businesses, crimes, visits, cfg, latest_month, today, first
     blocked = _blocked_keys([v for v in visits if v["kind"] == "business"], today,
                             cfg["settings"]["revisit_cooldown_days"])
     biz_crimes = [c for c in crimes if c["category"] in BUSINESS_CRIMES]
+    near_m = cfg["settings"]["nearby_metres"]
     leads = []
     for b in businesses:
         key = f"{b['source']}:{b['ext_id']}"
@@ -182,12 +183,12 @@ def score_businesses(businesses, crimes, visits, cfg, latest_month, today, first
         crime_pts = 0.0
         if b["lat"] is not None:
             for c in biz_crimes:
-                if distance_m(b["lat"], b["lng"], c["lat"], c["lng"]) <= 300:
+                if distance_m(b["lat"], b["lng"], c["lat"], c["lng"]) <= near_m:
                     near[c["category"]] += 1
                     crime_pts += BUSINESS_CRIMES[c["category"]] * recency(c["month"], latest_month) * 0.5
         score += min(crime_pts, BUSINESS_CRIME_CAP)
         if near:
-            pts.append("Within 300m: " + ", ".join(f"{v} {k.replace('-', ' ')}" for k, v in sorted(near.items())))
+            pts.append(f"Within a 5-minute walk ({near_m}m): " + ", ".join(f"{v} {k.replace('-', ' ')}" for k, v in sorted(near.items())))
         new_today = not first_run and b["first_seen"] == today.isoformat()
         if new_today:
             score += W_NEW_TODAY
