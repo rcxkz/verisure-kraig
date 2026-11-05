@@ -66,6 +66,25 @@ nav button.on{color:var(--accent);font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13.5px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 .rules{font-size:13px;color:var(--muted)}
+.summary{margin-top:8px;font-size:13px;color:var(--muted)}.summary b{color:var(--ink)}
+.screen{position:fixed;inset:0;z-index:40;background:var(--bg);display:none;flex-direction:column;overflow-y:auto}
+.screen.on{display:flex}
+.ss-head{position:sticky;top:0;background:var(--bg);display:flex;gap:10px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line);z-index:2}
+.ss-body{padding:8px 16px calc(24px + env(safe-area-inset-bottom));max-width:720px;width:100%;margin:0 auto}
+.door-entry{display:flex;gap:8px;align-items:center;margin:12px 0 4px}
+.door-entry input{flex:1;min-width:0;font:inherit;font-size:28px;font-weight:700;text-align:center;padding:8px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
+.door-entry input:focus{outline:none;border-color:var(--accent)}
+.step{font-size:24px;min-width:52px;min-height:56px;justify-content:center}
+.side{display:flex;justify-content:center;gap:8px;margin:6px 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid .btn{min-height:56px;justify-content:center;font-size:15px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chips .btn{min-height:32px;padding:4px 10px;font-size:13px}
+.door{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.door .num{font-weight:700;font-size:16px;min-width:56px}
+.door .what{flex:1}
+.o-not_home{color:var(--muted)}.o-callback{color:var(--warn)}.o-appointment,.o-sold{color:var(--ok)}.o-no_cold_callers,.o-not_interested{color:var(--muted)}
+details.tp summary{font-size:13px;color:var(--muted);cursor:pointer;margin-top:6px}
 </style>
 </head>
 <body>
@@ -94,6 +113,29 @@ nav button.on{color:var(--accent);font-weight:600}
   <button data-v="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4h6v3H9zM6 6h12v15H6zM9 12l2 2 4-4"/></svg><span>Log <span class="count" id="cbCount" hidden></span></span></button>
 </nav>
 
+<div class="screen" id="ss">
+  <div class="ss-head">
+    <button class="btn" id="ssBack" aria-label="Back">‹ Back</button>
+    <div style="min-width:0"><div class="t" id="ssTitle"></div><div class="meta" id="ssMeta"></div></div>
+  </div>
+  <div class="ss-body">
+    <div id="ssHints"></div>
+    <div class="door-entry">
+      <button class="btn step" data-step="-1" aria-label="Previous door">−</button>
+      <input id="door" inputmode="numeric" autocomplete="off" placeholder="No." aria-label="House number">
+      <button class="btn step" data-step="1" aria-label="Next door">+</button>
+    </div>
+    <div class="side">
+      <button class="toggle" id="sideBtn" aria-pressed="true">Same side (+2)</button>
+      <span class="meta" style="align-self:center">Type “Flat 3” or “79A” if needed</span>
+    </div>
+    <div class="grid" id="ssOutcomes"></div>
+    <h2 id="ssDoorsTitle">Doors on this street</h2>
+    <div class="card" id="ssDoors"></div>
+    <button class="btn primary more" id="ssFinish">Finish street</button>
+  </div>
+</div>
+
 <div class="sheet" id="sheet"><div class="panel">
   <div class="t" id="sheetTitle"></div>
   <div class="meta" id="sheetSub"></div>
@@ -109,7 +151,12 @@ const COOLDOWN_DAYS = 21;
 const OUTCOMES = [
   ["not_home", "Not home", ""], ["not_interested", "No", ""], ["callback", "Callback", "warn"],
   ["appointment", "Appt", "good"], ["sold", "Sold ✓", "good"], ["do_not_return", "Don't return", ""]];
-const LABEL = Object.fromEntries(OUTCOMES.map(o => [o[0], o[1]]));
+// Outcomes for a single front door
+const DOOR_OUTCOMES = [
+  ["not_home", "Not home", ""], ["not_interested", "Not interested", ""], ["callback", "Callback", "warn"],
+  ["appointment", "Appointment", "good"], ["sold", "Sold ✓", "good"], ["no_cold_callers", "No cold callers sign", ""]];
+const LABEL = Object.fromEntries([...OUTCOMES, ...DOOR_OUTCOMES].map(o => [o[0], o[1]]));
+Object.assign(LABEL, {worked: "Street done", skipped: "Skipped", do_not_return: "Don't return"});
 const PAGE = 40;
 
 const store = {
@@ -144,14 +191,93 @@ function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.ad
 
 function logVisit(item, outcome, note = "", due = "") {
   visits.push({kind: item.kind, key: item.key, label: item.label, lat: item.lat, lng: item.lng,
-               outcome, note, due, ts: new Date().toISOString()});
+               street: item.street || "", door: item.door || "", outcome, note, due, ts: new Date().toISOString()});
   store.set("visits", visits);
   toast(`${LABEL[outcome]} — ${item.label}`);
+  if (item.kind === "door") { advanceDoor(); renderStreetScreen(); }
   renderAll();
 }
+
+// ---- Streets: door-by-door ----
+function doorsOn(streetKey) {
+  const latest = new Map(), history = new Map();
+  visits.forEach(v => {
+    if (v.kind !== "door" || v.street !== streetKey) return;
+    latest.set(v.door, v);
+    history.set(v.door, (history.get(v.door) || 0) + 1);
+  });
+  return {latest, history};
+}
+function streetSummary(streetKey) {
+  const {latest} = doorsOn(streetKey);
+  const vs = [...latest.values()];
+  const s = lastVisit(streetKey);
+  return {
+    doors: vs.length,
+    appts: vs.filter(v => v.outcome === "appointment").length,
+    sold: vs.filter(v => v.outcome === "sold").length,
+    callbacks: vs.filter(v => v.outcome === "callback").length,
+    notHome: vs.filter(v => v.outcome === "not_home").length,
+    last: vs.reduce((a, v) => (!a || v.ts > a ? v.ts : a), s?.ts || ""),
+    status: s && (s.outcome === "worked" || s.outcome === "skipped") && daysAgo(s.ts) < COOLDOWN_DAYS ? s : null,
+  };
+}
+function streetDone(key) { return !!streetSummary(key).status; }
+
+const doorNum = d => { const m = String(d).match(/\d+/); return m ? +m[0] : Infinity; };
+let ssItem = null;
+function openStreet(item) {
+  ssItem = item;
+  $("#ssTitle").textContent = item.raw.street;
+  $("#ssMeta").textContent = item.raw.town;
+  $("#door").value = "";
+  $("#ss").classList.add("on");
+  renderStreetScreen();
+}
+function closeStreet() { $("#ss").classList.remove("on"); ssItem = null; renderAll(); }
+function advanceDoor(dir = 1) {
+  const inp = $("#door"), m = inp.value.match(/^(.*?)(\d+)(\D*)$/);
+  const step = ($("#sideBtn").getAttribute("aria-pressed") === "true" ? 2 : 1) * dir;
+  if (m) inp.value = String(Math.max(1, +m[2] + step));
+  else if (dir > 0 && !inp.value) inp.value = "1";
+}
+function renderStreetScreen() {
+  if (!ssItem) return;
+  const s = ssItem.raw, {latest, history} = doorsOn(ssItem.key);
+  const sum = streetSummary(ssItem.key);
+  $("#ssMeta").textContent = `${s.town} · ${sum.doors} door${sum.doors === 1 ? "" : "s"} logged`;
+  const notHomeBefore = [...latest.values()].filter(v => v.outcome === "not_home" && daysAgo(v.ts) > 0).map(v => v.door);
+  const newOwners = (s.sale_doors || []).filter(d => !latest.has(d));
+  let hints = `<details class="tp"><summary>Talking points</summary><ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul></details>`;
+  if (newOwners.length) hints += `<div class="meta" style="margin-top:8px">New owners (recent sales) — tap to fill:</div><div class="chips">${newOwners.map(d => `<button class="btn" data-fill="${esc(d)}">${esc(d)}</button>`).join("")}</div>`;
+  if (notHomeBefore.length) hints += `<div class="meta" style="margin-top:8px">Not home last time:</div><div class="chips">${notHomeBefore.sort((a, b) => doorNum(a) - doorNum(b)).map(d => `<button class="btn" data-fill="${esc(d)}">${esc(d)}</button>`).join("")}</div>`;
+  $("#ssHints").innerHTML = hints;
+  $("#ssOutcomes").innerHTML = DOOR_OUTCOMES.map(([k, l, c]) => `<button class="btn ${c}" data-door-o="${k}">${l}</button>`).join("");
+  const doors = [...latest.values()].sort((a, b) => doorNum(a.door) - doorNum(b.door) || a.door.localeCompare(b.door));
+  $("#ssDoorsTitle").textContent = doors.length ? `Doors on this street (${doors.length})` : "Doors on this street";
+  $("#ssDoors").innerHTML = doors.length ? doors.map(v => `<div class="door"><span class="num">${esc(v.door)}</span>
+      <span class="what"><span class="o-${v.outcome}">${LABEL[v.outcome] || v.outcome}</span> <span class="meta">· ${ago(v.ts)}${history.get(v.door) > 1 ? ` · ${history.get(v.door)} visits` : ""}</span>${v.note ? `<div class="meta">${esc(v.note)}</div>` : ""}</span>
+      <a href="#" data-undo="${esc(v.key)}" class="meta">undo</a></div>`).join("")
+    : `<div class="meta">No doors logged yet. Enter a house number, then tap what happened.</div>`;
+  $("#ssFinish").textContent = sum.status ? "Street finished ✓ (tap to reopen)" : "Finish street";
+}
+function doorItem(door) {
+  const s = ssItem;
+  return {kind: "door", key: `${s.key}#${door}`, street: s.key, door, label: `${door} ${s.raw.street}, ${s.raw.town}`,
+          sub: s.raw.street, lat: s.lat, lng: s.lng};
+}
+$("#ssBack").onclick = closeStreet;
+$("#sideBtn").onclick = e => { const b = e.currentTarget, on = b.getAttribute("aria-pressed") !== "true";
+  b.setAttribute("aria-pressed", on); b.textContent = on ? "Same side (+2)" : "Every door (+1)"; };
+$("#ssFinish").onclick = () => {
+  const sum = streetSummary(ssItem.key);
+  if (sum.status) { undo(ssItem.key); renderStreetScreen(); return; }
+  logVisit(ssItem, "worked", `${sum.doors} doors`);
+  closeStreet();
+};
 function undo(key) {
   for (let i = visits.length - 1; i >= 0; i--) if (visits[i].key === key) { visits.splice(i, 1); break; }
-  store.set("visits", visits); renderAll();
+  store.set("visits", visits); renderStreetScreen(); renderAll();
 }
 
 let pending = null;
@@ -194,7 +320,8 @@ function shopItem(b) {
 
 function filtered(list) {
   const town = $("#town").value, showDone = $("#showDone").getAttribute("aria-pressed") === "true";
-  let out = list.filter(i => (!town || i.raw.town === town || (i.raw.address || "").includes(town)) && (showDone || !isDone(i.key)) && i.lat != null);
+  const done = i => i.kind === "street" ? streetDone(i.key) : isDone(i.key);
+  let out = list.filter(i => (!town || i.raw.town === town || (i.raw.address || "").includes(town)) && (showDone || !done(i)) && i.lat != null);
   if (here) { out.forEach(i => i.d = dist(here[0], here[1], i.lat, i.lng)); out.sort((a, b) => a.d - b.d); }
   return out;
 }
@@ -204,11 +331,19 @@ function renderStreets() {
   const el = $("#v-streets");
   if (!list.length) { el.innerHTML = `<div class="empty">Nothing left here — try another town or turn on “Show visited”.</div>`; return; }
   el.innerHTML = list.slice(0, shown.streets).map(i => {
-    const s = i.raw, done = isDone(i.key);
-    return `<div class="card ${done ? "done" : ""}">
+    const s = i.raw, sum = streetSummary(i.key);
+    const nav = `https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${i.lat},${i.lng}`;
+    let summary = "";
+    if (sum.status) summary = `<div class="summary"><b>${LABEL[sum.status.outcome]}</b> ${ago(sum.status.ts)}${sum.doors ? ` · ${sum.doors} doors` : ""}</div>`;
+    else if (sum.doors) summary = `<div class="summary"><b>${sum.doors} door${sum.doors === 1 ? "" : "s"} knocked</b> · last ${ago(sum.last)}`
+      + [[sum.appts, "appt"], [sum.sold, "sold"], [sum.callbacks, "callback"], [sum.notHome, "not home"]].filter(x => x[0]).map(([n, w]) => ` · ${n} ${w}`).join("") + `</div>`;
+    return `<div class="card ${sum.status ? "done" : ""}">
       <div class="row"><div class="t">${esc(s.street)}</div><div class="score">${s.score}</div></div>
       <div class="meta">${esc(s.town)}${i.d != null ? " · " + fmtDist(i.d) + " away" : ""}</div>
-      <ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>${actions(i)}</div>`;
+      <ul class="pts">${s.talking_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
+      <div class="acts"><a class="btn" href="${nav}" target="_blank" rel="noopener">Go</a>
+        <button class="btn primary" data-knock="${esc(i.key)}">${sum.doors ? "Continue knocking" : "Knock doors"}</button>
+        ${sum.status ? "" : `<button class="btn" data-skip="${esc(i.key)}">Skip</button>`}</div>${summary}</div>`;
   }).join("") + (list.length > shown.streets ? `<button class="btn more" data-more="streets">Show more (${list.length - shown.streets} left)</button>` : "");
   list.forEach(i => ITEMS.set(i.key, i));
 }
@@ -253,7 +388,7 @@ function renderLog() {
   const callbacks = [...latest.values()].filter(v => v.outcome === "callback").sort((a, b) => (a.due || "").localeCompare(b.due || ""));
   const due = callbacks.filter(v => !v.due || v.due <= today);
   const cnt = $("#cbCount"); cnt.hidden = !due.length; cnt.textContent = due.length;
-  const todays = visits.filter(v => v.ts.slice(0, 10) === today);
+  const todays = visits.filter(v => v.ts.slice(0, 10) === today && v.kind !== "street");
   let html = `<div class="stats">
     <div class="stat"><b>${todays.length}</b><span>doors today</span></div>
     <div class="stat"><b>${visits.filter(v => v.outcome === "appointment").length}</b><span>appointments</span></div>
@@ -262,7 +397,7 @@ function renderLog() {
       <div class="row"><div class="t">${esc(v.label)}</div><div class="meta" style="color:${(!v.due || v.due <= today) ? "var(--accent)" : "var(--muted)"}">${v.due ? (v.due <= today ? "due " : "") + v.due : "no date"}</div></div>
       ${v.note ? `<div class="meta">${esc(v.note)}</div>` : ""}
       <div class="acts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=${v.lat},${v.lng}" target="_blank" rel="noopener">Go</a>
-      ${OUTCOMES.filter(o => o[0] !== "callback").map(([k, l, c]) => `<button class="btn ${c}" data-key="${esc(v.key)}" data-o="${k}">${l}</button>`).join("")}</div></div>`).join("")
+      ${(v.kind === "door" ? DOOR_OUTCOMES : OUTCOMES).filter(o => o[0] !== "callback").map(([k, l, c]) => `<button class="btn ${c}" data-key="${esc(v.key)}" data-o="${k}">${l}</button>`).join("")}</div></div>`).join("")
     : `<div class="card meta">No callbacks yet.</div>`);
   html += `<h2>History</h2><div class="card">` + (visits.length ? visits.slice().reverse().slice(0, 100).map(v =>
       `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${LABEL[v.outcome]}</b> · ${esc(v.label)}
@@ -272,7 +407,7 @@ function renderLog() {
     <p class="meta">Visits are saved on this phone only. Export regularly until sync is added.</p>`;
   el.innerHTML = html;
   $("#export").onclick = exportCsv;
-  callbacks.forEach(v => ITEMS.has(v.key) || ITEMS.set(v.key, {kind: v.kind, key: v.key, label: v.label, lat: v.lat, lng: v.lng}));
+  callbacks.forEach(v => ITEMS.has(v.key) || ITEMS.set(v.key, {kind: v.kind, key: v.key, label: v.label, lat: v.lat, lng: v.lng, street: v.street, door: v.door}));
 }
 
 function exportCsv() {
@@ -322,6 +457,20 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.da
 
 document.addEventListener("click", e => {
   const o = e.target.closest("[data-o]"), u = e.target.closest("[data-undo]"), m = e.target.closest("[data-more]");
+  const k = e.target.closest("[data-knock]"), sk = e.target.closest("[data-skip]"), dO = e.target.closest("[data-door-o]"),
+        f = e.target.closest("[data-fill]"), st = e.target.closest("[data-step]");
+  if (k) { const it = ITEMS.get(k.dataset.knock); if (it) openStreet(it); return; }
+  if (sk) { const it = ITEMS.get(sk.dataset.skip); if (it) logVisit(it, "skipped"); return; }
+  if (f) { $("#door").value = f.dataset.fill; return; }
+  if (st) { advanceDoor(+st.dataset.step); return; }
+  if (dO) {
+    const door = $("#door").value.trim();
+    if (!door) { toast("Enter the house number first"); $("#door").focus(); return; }
+    const item = doorItem(door);
+    if (["callback", "appointment", "sold"].includes(dO.dataset.doorO)) openSheet(item, dO.dataset.doorO);
+    else logVisit(item, dO.dataset.doorO);
+    return;
+  }
   if (o) {
     const item = ITEMS.get(o.dataset.key); if (!item) return;
     if (["callback", "appointment", "sold"].includes(o.dataset.o)) openSheet(item, o.dataset.o);

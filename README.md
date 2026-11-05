@@ -19,7 +19,8 @@ Every run also builds an installable phone app in `output/site/`:
 python -m http.server -d output/site 8000   # then open http://<this-computer>:8000 on the phone
 ```
 
-- **Streets:** cards with talking points, **Go** (walking directions), one-tap outcomes, and **Near me** to sort by distance.
+- **Streets:** cards with talking points, **Go** (walking directions), **Knock doors**, **Skip**, and **Near me** to sort by distance.
+- **Street screen** (from Knock doors): enter a house number, then tap an outcome (Not home, Not interested, Callback, Appointment, Sold, No cold callers sign). The number moves on to the next door (+2 for the same side, or +1). It shows every door logged on that street, new-owner house numbers to tap, and doors that weren't home last time. **Finish street** hides the street for 21 days.
 - **Map:** scored streets (red), new businesses (blue) and recent burglaries (grey dots).
 - **Shops:** new businesses with a "Phone / hours" lookup, plus the shop streets with the most theft.
 - **Log:** callbacks due (with a badge on the tab), today's doors, appointments, sales, and CSV export.
