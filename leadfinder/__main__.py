@@ -10,7 +10,7 @@ import argparse
 import sys
 from datetime import date, datetime, timedelta
 
-from . import config, db, report, scoring
+from . import config, db, report, scoring, site
 from .http import session
 from .sources import companies_house, fsa, landreg, news, police
 
@@ -58,8 +58,10 @@ def build(conn, cfg, statuses):
     statuses = {**statuses, "Hidden (visited recently / excluded)": f"{skipped} streets"}
     path = report.write_all(config.OUTPUT_DIR / today.isoformat(), today, streets, businesses,
                             hotspots, stories, statuses, cfg, latest)
+    app = site.build(config.OUTPUT_DIR / "site", today, streets, businesses, hotspots, stories, crimes, cfg, latest)
     print(f"\n{len(streets)} streets, {len(businesses)} businesses, {len(stories)} news stories")
     print(f"Report: {path}")
+    print(f"Mobile app: {app}  (serve with: python -m http.server -d output/site 8000)")
     return path
 
 

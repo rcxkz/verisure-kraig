@@ -11,7 +11,23 @@ python -m leadfinder run        # fetch + score + write today's report (~40s fir
 
 Open `output/<date>/report.html` on a phone or laptop. The same folder also has `streets.csv`, `businesses.csv` and `leads.json`.
 
-## Log what happened at each door
+## Mobile app
+
+Every run also builds an installable phone app in `output/site/`:
+
+```bash
+python -m http.server -d output/site 8000   # then open http://<this-computer>:8000 on the phone
+```
+
+- **Streets:** cards with talking points, **Go** (walking directions), one-tap outcomes, and **Near me** to sort by distance.
+- **Map:** scored streets (red), new businesses (blue) and recent burglaries (grey dots).
+- **Shops:** new businesses with a "Phone / hours" lookup, plus the shop streets with the most theft.
+- **Log:** callbacks due (with a badge on the tab), today's doors, appointments, sales, and CSV export.
+- To install it, use "Add to Home Screen" in Safari or Chrome.
+
+Visits are stored on the phone for now. Syncing them to a database is the next step.
+
+## Log from the command line
 
 ```bash
 python -m leadfinder log street "DOCK ROAD|Tilbury" not_home
